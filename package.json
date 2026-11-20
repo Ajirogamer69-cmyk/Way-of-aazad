@@ -1,0 +1,14 @@
+{
+  "name": "the-way-of-aazad",
+  "version": "1.0.0",
+  "description": "The Way of Aazad — a personal intellectual journal with a built-in admin dashboard.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "private": true
+}
