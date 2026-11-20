@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#101F3D">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Crect width=%27100%27 height=%27100%27 fill=%27%23101F3D%27/%3E%3Ccircle cx=%2750%27 cy=%2750%27 r=%2736%27 fill=%27none%27 stroke=%27%23A18B63%27 stroke-width=%278%27/%3E%3Ccircle cx=%2750%27 cy=%2750%27 r=%2711%27 fill=%27%23A18B63%27/%3E%3C/svg%3E">
+<meta name="description" content="The Way of Aazad: a personal intellectual journal. Between Logic and Imagination.">
+<title>Guestbook — The Way of Aazad</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="guestbook">
+<div class="wrap">
+<div id="head"></div>
+<div class="cols">
+<main class="main" id="content"><h2>Guestbook</h2>
+<p>Passing through? Leave a note, a question, or a favourite book recommendation.</p>
+<form id="gbform" autocomplete="off">
+<label for="gbn">Your name</label>
+<input type="text" id="gbn" name="name" maxlength="60" required>
+<label for="gbm">Your message</label>
+<textarea id="gbm" name="message" maxlength="1000" style="min-height:120px" required></textarea>
+<div class="hp" aria-hidden="true"><label>Leave this empty<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+<div class="btnrow"><button type="submit">Sign the Guestbook</button></div>
+<p class="status-line" id="gbmsg" role="status"></p>
+</form>
+<hr class="orn">
+<div id="gblist"></div></main>
+<aside class="side" id="side"></aside>
+</div>
+<div id="foot"></div>
+</div>
+<script src="js/store.js" data-base=""></script>
+<script src="js/site.js"></script>
+</body>
+</html>
