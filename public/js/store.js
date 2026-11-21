@@ -1,12 +1,17 @@
-/* The Way of Aazad \u2014 data layer.
- * SERVER mode: talks to /api (real login, files on disk).
- * DEMO mode:   no server found (e.g. GitHub Pages / preview) -> uses this browser's localStorage.
- *              Demo admin password is "demo". Nothing is shared between visitors.
+/* The Way of Aazad - data layer (GitHub edition).
+ * Visitors: read data/posts.json, a plain file served by GitHub Pages.
+ * Admin:    reads and writes that file in your GitHub repo through the GitHub API,
+ *           using a personal access token that stays in this browser.
+ * Demo:     "Try demo mode" keeps posts in this browser's localStorage only.
  * Include with: <script src="js/store.js" data-base=""></script>  (data-base="../" inside /admin/)
  */
 (function () {
   'use strict';
   var BASE = (document.currentScript && document.currentScript.getAttribute('data-base')) || '';
+  var SITE_DIR = 'public';
+  var POSTS_PATH = SITE_DIR + '/data/posts.json';
+  var K_CFG = 'aazad_gh', K_DEMO = 'aazad_demo', K_POSTS = 'aazad_posts';
+  var COVER_RE = /^uploads\/[a-f0-9]{12,}\.(jpg|png|webp|gif)$/;
 
   var DISCIPLINES = [
     { slug: 'logic-mathematics', name: 'Logic & Mathematics', sym: '\u2234', blurb: 'Proof, pattern and the quiet music of number.' },
@@ -17,6 +22,7 @@
     { slug: 'art-imagination', name: 'Art & Imagination', sym: '\u2766', blurb: 'Drawing, music, invention and idle daydreams.' }
   ];
 
+  /* ---------- text helpers ---------- */
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -61,57 +67,138 @@
     return String(t || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 70) || 'untitled';
   }
-  function plain(body) {
-    return String(body || '').replace(/[#>*_\[\]()`-]/g, ' ').replace(/\s+/g, ' ').trim();
-  }
+  function plain(body) { return String(body || '').replace(/[#>*_\[\]()`-]/g, ' ').replace(/\s+/g, ' ').trim(); }
   function makeExcerpt(body) {
     var t = plain(body);
     return t.length > 170 ? t.slice(0, 167).replace(/\s+\S*$/, '') + '\u2026' : t;
   }
   function byNewest(a, b) { return new Date(b.publishedAt || b.createdAt) - new Date(a.publishedAt || a.createdAt); }
+  function byUpdated(a, b) { return new Date(b.updatedAt) - new Date(a.updatedAt); }
+  function randHex(n) {
+    var a = new Uint8Array(n); crypto.getRandomValues(a);
+    return Array.prototype.map.call(a, function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+  }
+  function uid() { return randHex(6); }
 
-  /* ---------- mode detection ---------- */
-  var modeP = null;
-  function mode() {
-    if (modeP) return modeP;
-    modeP = fetch(BASE + 'api/ping', { headers: { accept: 'application/json' }, cache: 'no-store' })
-      .then(function (r) { return r.ok && (r.headers.get('content-type') || '').indexOf('json') > -1 ? r.json() : null; })
-      .then(function (j) { return j && j.ok ? 'server' : 'demo'; })
-      .catch(function () { return 'demo'; });
-    return modeP;
+  function guessRepo() {
+    var h = location.hostname;
+    if (!/\.github\.io$/i.test(h)) return '';
+    var owner = h.split('.')[0], seg = location.pathname.split('/').filter(Boolean);
+    return owner + '/' + (seg.length && !/\.html?$/i.test(seg[0]) ? seg[0] : owner + '.github.io');
   }
 
-  function api(method, url, body) {
-    var opt = { method: method, headers: { accept: 'application/json' }, credentials: 'same-origin' };
-    if (body !== undefined) { opt.headers['content-type'] = 'application/json'; opt.body = JSON.stringify(body); }
-    return fetch(BASE + url, opt).then(function (r) {
-      return r.json().catch(function () { return {}; }).then(function (j) {
-        if (!r.ok) { var e = new Error(j.error || ('Request failed (' + r.status + ')')); e.status = r.status; throw e; }
-        return j;
-      });
-    });
-  }
-
-  /* ---------- demo storage ---------- */
+  /* ---------- browser storage (always guarded) ---------- */
   var LS = {
     get: function (k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
-    set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { throw new Error('Browser storage is full or blocked.'); } }
+    set: function (k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { throw new Error('This browser is blocking storage, so it cannot remember your sign-in.'); } },
+    del: function (k) { try { localStorage.removeItem(k); } catch (e) {} }
   };
-  var seeded = null;
+  function isDemo() { return LS.get(K_DEMO, false) === true; }
+  function cfg() { var c = LS.get(K_CFG, null); return c && c.repo && c.token ? c : null; }
+
+  /* ---------- reading the site's own data files ---------- */
+  function fileJSON(name) {
+    return fetch(BASE + name + '?v=' + Math.floor(Date.now() / 60000), { cache: 'no-store' }).then(function (r) {
+      if (!r.ok) throw new Error('missing ' + name);
+      return r.json();
+    });
+  }
+  function seedPosts() { return fileJSON('seed/posts.json').catch(function () { return []; }); }
+  function livePosts() { return fileJSON('data/posts.json').catch(seedPosts); }
   function demoPosts() {
-    var cur = LS.get('aazad_posts', null);
+    var cur = LS.get(K_POSTS, null);
     if (cur) return Promise.resolve(cur);
-    if (!seeded) seeded = fetch(BASE + 'seed/posts.json').then(function (r) { return r.json(); }).catch(function () { return []; });
-    return seeded.then(function (p) { LS.set('aazad_posts', p); return p; });
+    return seedPosts().then(function (p) { LS.set(K_POSTS, p); return p; });
   }
-  function demoGuest() {
-    var cur = LS.get('aazad_guest', null);
-    if (cur) return Promise.resolve(cur);
-    return fetch(BASE + 'seed/guestbook.json').then(function (r) { return r.json(); }).catch(function () { return []; })
-      .then(function (g) { LS.set('aazad_guest', g); return g; });
+  function allPosts() { return isDemo() ? demoPosts() : livePosts(); }
+
+  /* ---------- GitHub API ---------- */
+  function authErr() { var e = new Error('Please connect to GitHub first.'); e.status = 401; return e; }
+  function httpError(status, j) {
+    var m;
+    if (status === 401) m = 'GitHub did not accept that token. It may be wrong or expired.';
+    else if (status === 403) m = /rate limit/i.test((j && j.message) || '') ? 'GitHub rate limit reached. Wait a few minutes and try again.' : 'The token does not have permission. It needs "Contents: Read and write" on this repository.';
+    else if (status === 404) m = 'Repository or file not found. Check the repository name, and that the token can access it.';
+    else if (status === 409 || status === 422) m = 'GitHub reported a conflict. Please try again.';
+    else m = (j && j.message) || ('GitHub error (' + status + ').');
+    var e = new Error(m); e.status = status; return e;
   }
-  function demoAuthed() { try { return sessionStorage.getItem('aazad_demo_admin') === '1'; } catch (e) { return false; } }
-  function uid() { return Math.random().toString(16).slice(2, 10) + Date.now().toString(16); }
+  function ghFetch(c, method, path, body, accept) {
+    var h = { Accept: accept || 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', Authorization: 'Bearer ' + c.token };
+    var opt = { method: method, headers: h, cache: 'no-store' };
+    if (body) { h['Content-Type'] = 'application/json'; opt.body = JSON.stringify(body); }
+    return fetch('https://api.github.com' + path, opt).catch(function () { throw new Error('Could not reach GitHub. Check your internet connection.'); });
+  }
+  function gh(method, path, body) {
+    var c = cfg(); if (!c) return Promise.reject(authErr());
+    return ghFetch(c, method, path, body).then(function (r) {
+      return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok) throw httpError(r.status, j); return j; });
+    });
+  }
+  function cpath(c, path) { return '/repos/' + c.repo + '/contents/' + path.split('/').map(encodeURIComponent).join('/'); }
+
+  function toB64(str) { return bytesB64(new TextEncoder().encode(str)); }
+  function bytesB64(bytes) {
+    var s = '', i, ch = 0x8000;
+    for (i = 0; i < bytes.length; i += ch) s += String.fromCharCode.apply(null, bytes.subarray(i, i + ch));
+    return btoa(s);
+  }
+  function fromB64(b) {
+    var bin = atob(b.replace(/\s/g, '')), bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder().decode(bytes);
+  }
+
+  function getFile(path) {
+    var c = cfg(); if (!c) return Promise.reject(authErr());
+    var url = cpath(c, path) + '?ref=' + encodeURIComponent(c.branch || 'main');
+    return gh('GET', url).then(function (j) {
+      if (j.encoding === 'base64' && typeof j.content === 'string' && j.content.length) return { sha: j.sha, text: fromB64(j.content) };
+      return ghFetch(c, 'GET', url, null, 'application/vnd.github.raw+json').then(function (r) {
+        if (!r.ok) throw httpError(r.status, {});
+        return r.text();
+      }).then(function (t) { return { sha: j.sha, text: t }; });
+    }, function (e) { if (e.status === 404) return null; throw e; });
+  }
+  function putFile(path, b64, sha, message) {
+    var c = cfg(); if (!c) return Promise.reject(authErr());
+    var body = { message: message, content: b64, branch: c.branch || 'main' };
+    if (sha) body.sha = sha;
+    return gh('PUT', cpath(c, path), body);
+  }
+  function dropIfUnused(cover, list) {
+    var c = cfg();
+    if (!c || !cover || !COVER_RE.test(cover)) return;
+    if (list.some(function (p) { return p.cover === cover; })) return;
+    var path = SITE_DIR + '/' + cover;
+    gh('GET', cpath(c, path) + '?ref=' + encodeURIComponent(c.branch || 'main')).then(function (j) {
+      return gh('DELETE', cpath(c, path), { message: 'Remove unused cover ' + cover, sha: j.sha, branch: c.branch || 'main' });
+    }).catch(function () {});
+  }
+
+  function readPostsRemote() {
+    return getFile(POSTS_PATH).then(function (f) {
+      if (f) {
+        var list;
+        try { list = JSON.parse(f.text); } catch (e) { throw new Error('public/data/posts.json is not valid JSON. Fix it on GitHub, then try again.'); }
+        return { sha: f.sha, list: Array.isArray(list) ? list : [] };
+      }
+      return seedPosts().then(function (l) { return { sha: null, list: l }; });
+    });
+  }
+  // fn(list) -> { list, result, msg }. Re-reads and retries if GitHub reports a conflict.
+  function mutatePosts(fn) {
+    function attempt(n) {
+      return readPostsRemote().then(function (cur) {
+        var out = fn(cur.list);
+        return putFile(POSTS_PATH, toB64(JSON.stringify(out.list, null, 2)), cur.sha, out.msg).then(function () { return out; }, function (e) {
+          if ((e.status === 409 || e.status === 422) && n < 3) return attempt(n + 1);
+          throw e;
+        });
+      });
+    }
+    return attempt(1);
+  }
 
   function cleanPost(input, existing, all) {
     var title = String(input.title || '').trim();
@@ -128,118 +215,13 @@
     p.status = status;
     p.updatedAt = now;
     if (status === 'published' && !p.publishedAt) p.publishedAt = now;
-    if (!existing || !p.slug) {
+    if (!p.slug) {
       var base = slugify(title), s = base, n = 2;
       while (all.some(function (x) { return x.slug === s && x.id !== p.id; })) s = base + '-' + n++;
       p.slug = s;
     }
     return p;
   }
-
-  /* ---------- public API ---------- */
-  var Store = {
-    mode: mode,
-    DISCIPLINES: DISCIPLINES,
-
-    published: function () {
-      return mode().then(function (m) {
-        if (m === 'server') return api('GET', 'api/posts').then(function (j) { return j.posts; });
-        return demoPosts().then(function (p) { return p.filter(function (x) { return x.status === 'published'; }).sort(byNewest); });
-      });
-    },
-    bySlug: function (slug) {
-      return mode().then(function (m) {
-        if (m === 'server') return api('GET', 'api/posts/' + encodeURIComponent(slug)).then(function (j) { return j.post; });
-        return demoPosts().then(function (p) {
-          return p.filter(function (x) { return x.slug === slug && x.status === 'published'; })[0] || null;
-        }).then(function (r) { if (!r) { var e = new Error('Not found'); e.status = 404; throw e; } return r; });
-      });
-    },
-    me: function () {
-      return mode().then(function (m) {
-        if (m === 'server') return api('GET', 'api/me').then(function (j) { return !!j.admin; }).catch(function () { return false; });
-        return demoAuthed();
-      });
-    },
-    login: function (user, pw) {
-      return mode().then(function (m) {
-        if (m === 'server') return api('POST', 'api/login', { username: user, password: pw });
-        if (pw !== 'demo') throw new Error('Wrong password (demo mode password is "demo").');
-        sessionStorage.setItem('aazad_demo_admin', '1');
-        return { ok: true };
-      });
-    },
-    logout: function () {
-      return mode().then(function (m) {
-        if (m === 'server') return api('POST', 'api/logout', {});
-        try { sessionStorage.removeItem('aazad_demo_admin'); } catch (e) {}
-        return { ok: true };
-      });
-    },
-    adminList: function () {
-      return mode().then(function (m) {
-        if (m === 'server') return api('GET', 'api/admin/posts').then(function (j) { return j.posts; });
-        return demoPosts().then(function (p) { return p.slice().sort(function (a, b) { return new Date(b.updatedAt) - new Date(a.updatedAt); }); });
-      });
-    },
-    adminGet: function (id) {
-      return Store.adminList().then(function (l) { return l.filter(function (p) { return p.id === id; })[0] || null; });
-    },
-    save: function (post) {
-      return mode().then(function (m) {
-        if (m === 'server') {
-          return post.id ? api('PUT', 'api/admin/posts/' + encodeURIComponent(post.id), post).then(function (j) { return j.post; })
-                         : api('POST', 'api/admin/posts', post).then(function (j) { return j.post; });
-        }
-        return demoPosts().then(function (all) {
-          var ex = post.id ? all.filter(function (p) { return p.id === post.id; })[0] : null;
-          var np = cleanPost(post, ex, all);
-          if (ex) all[all.indexOf(ex)] = np; else all.push(np);
-          LS.set('aazad_posts', all);
-          return np;
-        });
-      });
-    },
-    remove: function (id) {
-      return mode().then(function (m) {
-        if (m === 'server') return api('DELETE', 'api/admin/posts/' + encodeURIComponent(id));
-        return demoPosts().then(function (all) { LS.set('aazad_posts', all.filter(function (p) { return p.id !== id; })); return { ok: true }; });
-      });
-    },
-    // Resizes the picked image in the browser, then stores it. Returns the URL to use as cover.
-    uploadCover: function (file) {
-      return shrink(file, 1400, 0.85).then(function (dataUrl) {
-        return mode().then(function (m) {
-          if (m === 'server') return api('POST', 'api/admin/upload', { dataUrl: dataUrl }).then(function (j) { return j.url; });
-          return shrink(file, 900, 0.7); // smaller in demo so localStorage doesn't overflow
-        });
-      });
-    },
-
-    guestbook: function () {
-      return mode().then(function (m) {
-        if (m === 'server') return api('GET', 'api/guestbook').then(function (j) { return j.entries; });
-        return demoGuest().then(function (g) { return g.slice().sort(function (a, b) { return new Date(b.at) - new Date(a.at); }); });
-      });
-    },
-    sign: function (name, message, trap) {
-      name = String(name || '').trim(); message = String(message || '').trim();
-      if (!name || !message) return Promise.reject(new Error('Please fill in your name and a message.'));
-      return mode().then(function (m) {
-        if (m === 'server') return api('POST', 'api/guestbook', { name: name, message: message, website: trap || '' });
-        return demoGuest().then(function (g) {
-          g.push({ id: uid(), name: name.slice(0, 60), message: message.slice(0, 1000), at: new Date().toISOString() });
-          LS.set('aazad_guest', g); return { ok: true };
-        });
-      });
-    },
-    removeEntry: function (id) {
-      return mode().then(function (m) {
-        if (m === 'server') return api('DELETE', 'api/admin/guestbook/' + encodeURIComponent(id));
-        return demoGuest().then(function (g) { LS.set('aazad_guest', g.filter(function (e) { return e.id !== id; })); return { ok: true }; });
-      });
-    }
-  };
 
   function shrink(file, maxW, q) {
     return new Promise(function (resolve, reject) {
@@ -264,6 +246,95 @@
     });
   }
 
-  window.Aazad = { Store: Store, DISCIPLINES: DISCIPLINES, esc: esc, md: md, fmtDate: fmtDate, discName: discName, plain: plain, base: BASE };
+  /* ---------- public API ---------- */
+  var Store = {
+    DISCIPLINES: DISCIPLINES,
+    mode: function () { return Promise.resolve(isDemo() ? 'demo' : 'repo'); },
+    lastRepo: function () { return LS.get('aazad_repo', ''); },
+    info: function () { var c = cfg(); return { demo: isDemo(), repo: c ? c.repo : '' }; },
+
+    published: function () {
+      return allPosts().then(function (p) { return p.filter(function (x) { return x.status === 'published'; }).sort(byNewest); });
+    },
+    bySlug: function (slug) {
+      return allPosts().then(function (p) {
+        var r = p.filter(function (x) { return x.slug === slug && x.status === 'published'; })[0];
+        if (!r) { var e = new Error('Not found'); e.status = 404; throw e; }
+        return r;
+      });
+    },
+
+    me: function () { return Promise.resolve(isDemo() || !!cfg()); },
+    login: function (repo, token) {
+      repo = String(repo || '').trim().replace(/^https?:\/\/github\.com\//i, '').replace(/\.git$/i, '').replace(/\/+$/, '');
+      token = String(token || '').trim();
+      if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) return Promise.reject(new Error('Enter the repository as owner/name, for example yourname/the-way-of-aazad.'));
+      if (!token) return Promise.reject(new Error('Paste your access token.'));
+      var c = { repo: repo, token: token, branch: 'main' };
+      return ghFetch(c, 'GET', '/repos/' + repo).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) throw httpError(r.status, j);
+          if (j.permissions && j.permissions.push === false) throw new Error('This token can read the repository but not change it. Give it "Contents: Read and write".');
+          c.branch = j.default_branch || 'main';
+          LS.set(K_CFG, c); LS.set('aazad_repo', repo); LS.del(K_DEMO);
+          return { ok: true };
+        });
+      });
+    },
+    enterDemo: function () { LS.set(K_DEMO, true); return demoPosts().then(function () { return { ok: true }; }); },
+    logout: function () { LS.del(K_CFG); LS.del(K_DEMO); return Promise.resolve({ ok: true }); },
+
+    adminList: function () {
+      if (isDemo()) return demoPosts().then(function (p) { return p.slice().sort(byUpdated); });
+      return readPostsRemote().then(function (r) { return r.list.slice().sort(byUpdated); });
+    },
+    adminGet: function (id) { return Store.adminList().then(function (l) { return l.filter(function (p) { return p.id === id; })[0] || null; }); },
+
+    save: function (post) {
+      if (isDemo()) {
+        return demoPosts().then(function (all) {
+          var ex = post.id ? all.filter(function (p) { return p.id === post.id; })[0] : null;
+          var np = cleanPost(post, ex, all);
+          if (ex) all[all.indexOf(ex)] = np; else all.push(np);
+          LS.set(K_POSTS, all);
+          return np;
+        });
+      }
+      var oldCover = '';
+      return mutatePosts(function (all) {
+        var ex = post.id ? all.filter(function (p) { return p.id === post.id; })[0] : null;
+        var np = cleanPost(post, ex, all);
+        if (np.cover && !COVER_RE.test(np.cover)) throw new Error('Invalid cover image. Please upload it again.');
+        oldCover = ex ? ex.cover : '';
+        if (ex) all[all.indexOf(ex)] = np; else all.push(np);
+        return { list: all, result: np, msg: (np.status === 'published' ? 'Publish: ' : 'Save draft: ') + np.title.slice(0, 60) };
+      }).then(function (out) {
+        if (oldCover && oldCover !== out.result.cover) dropIfUnused(oldCover, out.list);
+        return out.result;
+      });
+    },
+    remove: function (id) {
+      if (isDemo()) return demoPosts().then(function (all) { LS.set(K_POSTS, all.filter(function (p) { return p.id !== id; })); return { ok: true }; });
+      var gone = null;
+      return mutatePosts(function (all) {
+        var i = -1; all.forEach(function (p, k) { if (p.id === id) i = k; });
+        if (i < 0) throw new Error('That article was already deleted.');
+        gone = all.splice(i, 1)[0];
+        return { list: all, result: true, msg: 'Delete: ' + gone.title.slice(0, 60) };
+      }).then(function (out) { dropIfUnused(gone.cover, out.list); return { ok: true }; });
+    },
+    // Resizes the photo in the browser, then stores it. Resolves to { url, preview }.
+    uploadCover: function (file) {
+      return shrink(file, 1400, 0.85).then(function (dataUrl) {
+        if (isDemo()) return shrink(file, 900, 0.7).then(function (d) { return { url: d, preview: d }; });
+        var name = randHex(12) + '.jpg';
+        return putFile(SITE_DIR + '/uploads/' + name, dataUrl.split(',')[1], null, 'Upload cover ' + name).then(function () {
+          return { url: 'uploads/' + name, preview: dataUrl };
+        });
+      });
+    }
+  };
+
+  window.Aazad = { Store: Store, DISCIPLINES: DISCIPLINES, esc: esc, md: md, fmtDate: fmtDate, discName: discName, plain: plain, base: BASE, guessRepo: guessRepo };
 })();
- 
+        
