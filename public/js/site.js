@@ -47,7 +47,7 @@
   function foot() {
     $('foot').innerHTML = '<div class="footer">' + pixelStar() + ' &nbsp;<i>Between Logic and Imagination</i>&nbsp; ' + pixelStar() +
       '<br>Handwritten in the spirit of the early web &middot; Best viewed with an open mind<br>&copy; ' + new Date().getFullYear() +
-      ' Aazad &middot; <a href="admin/">admin</a></div>';
+      ' Aazad &middot; <a href="admin/index.html">admin</a></div>';
   }
 
   function card(p) {
@@ -78,7 +78,7 @@
       if (m !== 'demo') return;
       var b = document.createElement('div');
       b.className = 'banner-demo';
-      b.innerHTML = 'Preview mode &mdash; posts live in this browser only. <a href="admin/">Open the admin</a> (password: <b>demo</b>)';
+      b.innerHTML = 'Demo mode &mdash; posts live in this browser only and are not saved to GitHub. <a href="admin/index.html">Open the admin</a>';
       document.body.insertBefore(b, document.body.firstChild);
     });
   }
@@ -86,9 +86,9 @@
     S.me().then(function (ok) {
       if (!ok) return;
       var a = document.createElement('a');
-      a.className = 'btn fab'; a.href = 'admin/#new'; a.textContent = '\u270e Write';
+      a.className = 'btn fab'; a.href = 'admin/index.html#new'; a.textContent = '\u270e Write';
       document.body.appendChild(a);
-      if (postId && $('editlink')) { $('editlink').innerHTML = ' &middot; <a href="admin/#edit=' + encodeURIComponent(postId) + '">Edit this article</a>'; }
+      if (postId && $('editlink')) { $('editlink').innerHTML = ' &middot; <a href="admin/index.html#edit=' + encodeURIComponent(postId) + '">Edit this article</a>'; }
     });
   }
 
@@ -156,23 +156,9 @@
   };
 
   R.guestbook = function () {
-    var f = $('gbform'), msg = $('gbmsg');
-    function load() {
-      S.guestbook().then(function (list) {
-        $('gblist').innerHTML = list.map(function (e) {
-          return '<div class="entry"><span class="who">' + esc(e.name) + '</span> <span class="meta">&middot; ' + esc(A.fmtDate(e.at)) + '</span><p>' + esc(e.message) + '</p></div>';
-        }).join('') || '<p><i>No signatures yet. Be the first.</i></p>';
-      });
-    }
-    f.addEventListener('submit', function (ev) {
-      ev.preventDefault();
-      var b = f.querySelector('button'); b.disabled = true; msg.className = 'status-line'; msg.textContent = 'Signing\u2026';
-      S.sign(f.name.value, f.message.value, f.website.value).then(function () {
-        f.reset(); msg.className = 'status-line ok'; msg.textContent = 'Thank you for signing the guestbook.'; load();
-      }).catch(function (e) { msg.className = 'status-line err'; msg.textContent = e.message; })
-        .then(function () { b.disabled = false; });
-    });
-    load();
+    var repo = A.guessRepo(), link = $('gbLink');
+    if (repo) { link.href = 'https://github.com/' + repo + '/discussions'; link.target = '_blank'; link.rel = 'noopener noreferrer'; }
+    else { link.style.display = 'none'; $('gbHelp').textContent = 'Open this site\'s GitHub repository and choose the Discussions tab.'; }
   };
 
   /* ---------- boot ---------- */
@@ -190,3 +176,4 @@
     adminFab();
   }
 })();
+      
