@@ -1,18 +1,5 @@
 [
   {
-    "id": "seed0001",
-    "slug": "welcome-to-the-way-of-aazad",
-    "title": "Welcome to the Way of Aazad",
-    "excerpt": "Why a polymath keeps a journal, and what you will find in these pages.",
-    "body": "Every curious person eventually discovers that the subjects they love do not respect each other's borders. A proof can be beautiful in the way a poem is beautiful; a star chart can be as much a drawing as a measurement.\n\nThis journal is where those borders get crossed on purpose.\n\n## What to expect\n\n- Essays on **logic and mathematics**\n- Notes on philosophy, astronomy and physics\n- Reading lists, sketches and small experiments in code\n\n> The aim is not to know everything, but to stay interested in everything.\n\n---\n\nThanks for visiting. Take a look around, and *sign the guestbook* on your way out.",
-    "discipline": "philosophy",
-    "cover": "",
-    "status": "published",
-    "createdAt": "2026-11-01T09:00:00.000Z",
-    "updatedAt": "2026-11-01T09:00:00.000Z",
-    "publishedAt": "2026-11-01T09:00:00.000Z"
-  },
-  {
     "id": "seed0002",
     "slug": "counting-the-stars-by-hand",
     "title": "Counting the Stars by Hand",
