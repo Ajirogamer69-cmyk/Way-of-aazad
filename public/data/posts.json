@@ -1,18 +1,5 @@
 [
   {
-    "id": "seed0002",
-    "slug": "counting-the-stars-by-hand",
-    "title": "Counting the Stars by Hand",
-    "excerpt": "On the quiet pleasure of observing the sky without a screen in sight.",
-    "body": "There is a particular silence that arrives when you stop looking at devices and start looking up. The sky, it turns out, has been patiently running its experiments all along.\n\nOld astronomers had little more than patience, a notebook and an idea. Their diagrams — circles within circles, ticks around a dial — are small acts of imagination wearing the costume of precision.\n\n## A small exercise\n\nOn a clear night, pick one bright star and note where it sits against the horizon. Come back in an hour. Draw what changed.\n\nThat is the whole of astronomy, really: *notice, record, wonder*.",
-    "discipline": "astronomy-physics",
-    "cover": "",
-    "status": "published",
-    "createdAt": "2026-11-08T18:30:00.000Z",
-    "updatedAt": "2026-11-22T08:20:49.621Z",
-    "publishedAt": "2026-11-08T18:30:00.000Z"
-  },
-  {
     "id": "seed0003",
     "slug": "the-elegance-of-a-short-proof",
     "title": "The Elegance of a Short Proof",
