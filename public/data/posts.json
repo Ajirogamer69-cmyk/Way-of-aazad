@@ -1,0 +1,41 @@
+[
+  {
+    "id": "seed0001",
+    "slug": "welcome-to-the-way-of-aazad",
+    "title": "Welcome to the Way of Aazad",
+    "excerpt": "Why a polymath keeps a journal, and what you will find in these pages.",
+    "body": "Every curious person eventually discovers that the subjects they love do not respect each other's borders. A proof can be beautiful in the way a poem is beautiful; a star chart can be as much a drawing as a measurement.\n\nThis journal is where those borders get crossed on purpose.\n\n## What to expect\n\n- Essays on **logic and mathematics**\n- Notes on philosophy, astronomy and physics\n- Reading lists, sketches and small experiments in code\n\n> The aim is not to know everything, but to stay interested in everything.\n\n---\n\nThanks for visiting. Take a look around, and *sign the guestbook* on your way out.",
+    "discipline": "philosophy",
+    "cover": "",
+    "status": "published",
+    "createdAt": "2026-11-01T09:00:00.000Z",
+    "updatedAt": "2026-11-01T09:00:00.000Z",
+    "publishedAt": "2026-11-01T09:00:00.000Z"
+  },
+  {
+    "id": "seed0002",
+    "slug": "counting-the-stars-by-hand",
+    "title": "Counting the Stars by Hand",
+    "excerpt": "On the quiet pleasure of observing the sky without a screen in sight.",
+    "body": "There is a particular silence that arrives when you stop looking at devices and start looking up. The sky, it turns out, has been patiently running its experiments all along.\n\nOld astronomers had little more than patience, a notebook and an idea. Their diagrams — circles within circles, ticks around a dial — are small acts of imagination wearing the costume of precision.\n\n## A small exercise\n\nOn a clear night, pick one bright star and note where it sits against the horizon. Come back in an hour. Draw what changed.\n\nThat is the whole of astronomy, really: *notice, record, wonder*.",
+    "discipline": "astronomy-physics",
+    "cover": "",
+    "status": "published",
+    "createdAt": "2026-11-08T18:30:00.000Z",
+    "updatedAt": "2026-11-22T08:20:38.661Z",
+    "publishedAt": "2026-11-08T18:30:00.000Z"
+  },
+  {
+    "id": "seed0003",
+    "slug": "the-elegance-of-a-short-proof",
+    "title": "The Elegance of a Short Proof",
+    "excerpt": "Why the best arguments are often the ones you can hold in your head at once.",
+    "body": "A short proof has the same pleasure as a well-made sentence: nothing extra, nothing missing.\n\nConsider the old argument that there is no largest prime. Assume there is one, multiply all the primes together, add one, and look at what you have made. A few lines, and an infinity is tamed.\n\n## Why it matters\n\nShort proofs are not only tidy. They reveal *why* something is true, not merely *that* it is true — and that difference is where understanding lives.",
+    "discipline": "logic-mathematics",
+    "cover": "",
+    "status": "published",
+    "createdAt": "2026-11-15T12:00:00.000Z",
+    "updatedAt": "2026-11-15T12:00:00.000Z",
+    "publishedAt": "2026-11-15T12:00:00.000Z"
+  }
+]
